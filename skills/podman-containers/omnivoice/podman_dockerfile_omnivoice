@@ -1,0 +1,58 @@
+# syntax=docker/dockerfile:1
+# CPU-first OmniVoice image. For NVIDIA acceleration, see podman_readme_omnivoice.md.
+# Ubuntu 24.04 is used consistently with the other project containers.
+FROM docker.io/library/ubuntu:24.04
+
+LABEL org.opencontainers.image.title="OmniVoice"
+LABEL org.opencontainers.image.description="Omnilingual zero-shot text-to-speech with voice cloning and voice design"
+LABEL org.opencontainers.image.source="https://github.com/k2-fsa/OmniVoice"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH=/opt/venv/bin:$PATH \
+    HF_HOME=/models
+
+# ffmpeg is used by the audio stack; libsndfile is required by soundfile.
+# Keep package installation and apt cleanup in one layer.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    ffmpeg \
+    libsndfile1 \
+    python3 \
+    python3.12-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Use uv only as the installer. Installing CPU PyTorch explicitly avoids
+# pulling the multi-gigabyte CUDA runtime into this CPU image.
+COPY --from=ghcr.io/astral-sh/uv:0.9.7 /uv /uvx /bin/
+RUN uv venv "$VIRTUAL_ENV" --python /usr/bin/python3.12 && \
+    uv pip install --python "$VIRTUAL_ENV/bin/python" \
+        --index-url https://download.pytorch.org/whl/cpu \
+        torch==2.8.0 torchaudio==2.8.0 && \
+    uv pip install --python "$VIRTUAL_ENV/bin/python" \
+        'transformers>=5.3.0' accelerate pydub gradio tensorboardX \
+        webdataset numpy soundfile librosa socksio
+
+# Use the same non-root ubuntu user as the other project containers.
+# --userns=keep-id is still recommended for host-mounted output directories.
+RUN id ubuntu || useradd --create-home --shell /bin/bash ubuntu && \
+    mkdir -p /workdir /models && \
+    chown -R ubuntu:ubuntu /workdir /models "$VIRTUAL_ENV"
+
+WORKDIR /opt/omnivoice
+COPY --chown=ubuntu:ubuntu pyproject.toml README.md ./
+COPY --chown=ubuntu:ubuntu omnivoice ./omnivoice
+
+# Install the checked-out OmniVoice project itself; dependencies were
+# installed explicitly above to keep CPU PyTorch and avoid CUDA runtimes.
+RUN uv pip install --python "$VIRTUAL_ENV/bin/python" --no-deps /opt/omnivoice && \
+    chown -R ubuntu:ubuntu "$VIRTUAL_ENV"
+
+USER ubuntu
+WORKDIR /workdir
+
+# Default to the single-item CLI. Pass CLI arguments after the image name.
+ENTRYPOINT ["omnivoice-infer"]
+CMD ["--help"]

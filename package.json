@@ -1,0 +1,10 @@
+{
+  "name": "pi-podman-containers",
+  "version": "0.1.0",
+  "description": "Reusable Podman container construction, operation, and archiving rules for project repositories.",
+  "keywords": ["pi-package"],
+  "license": "MIT",
+  "pi": {
+    "skills": ["skills"]
+  }
+}

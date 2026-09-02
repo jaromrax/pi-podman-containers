@@ -1,0 +1,80 @@
+FROM docker.io/library/ubuntu:24.04
+
+LABEL maintainer="SRIM Container"
+LABEL description="SRIM - Stopping and Range of Ions in Matter"
+
+# Install system packages in a single layer with cleanup
+RUN dpkg --add-architecture i386 && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    wine \
+    wine32:i386 \
+    xvfb \
+    ca-certificates \
+    curl \
+    nano \
+    rsync less mc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Ensure ubuntu user exists (ubuntu:24.04 already has it)
+RUN id ubuntu || useradd -m -s /bin/bash ubuntu
+
+# Install uv for Python management
+RUN curl -sL https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-gnu.tar.gz | \
+    tar xz -C /usr/local/bin --strip-components=1 uv-x86_64-unknown-linux-gnu/uv uv-x86_64-unknown-linux-gnu/uvx
+
+# Create Python venv and install packages
+USER ubuntu
+RUN uv venv /home/ubuntu/.venv && \
+    uv pip install --python /home/ubuntu/.venv/bin/python click matplotlib
+RUN echo 'source /home/ubuntu/.venv/bin/activate' >> /home/ubuntu/.bashrc
+
+# Initialize Wine prefix (no GUI needed)
+USER ubuntu
+RUN xvfb-run wineboot --init && \
+    wineboot --update && \
+    rm -rf /home/ubuntu/.cache/wine
+
+# Copy Windows dependencies to Wine system directory
+COPY --chown=ubuntu:ubuntu ./installation_files/COMDLG32.OCX ./installation_files/msflxgrd.ocx ./installation_files/MSVBVM50.DLL ./installation_files/RICHTX32.OCX ./installation_files/TABCTL32.OCX ./installation_files/comctl32.ocx \
+    /home/ubuntu/.wine/drive_c/windows/
+
+# Copy pre-installed SRIM tree from installation_files
+COPY --chown=ubuntu:ubuntu ./installation_files/SRIM_COPY/ /tmp/srim_install/
+
+# Move SRIM into Program Files
+USER root
+RUN mv /tmp/srim_install "/home/ubuntu/.wine/drive_c/Program Files/SRIM" && \
+    chown -R ubuntu:ubuntu "/home/ubuntu/.wine/drive_c/Program Files/SRIM" && \
+    ln -s "/home/ubuntu/.wine/drive_c/Program Files/SRIM" /home/ubuntu/SRIM && \
+    ln -s "/home/ubuntu/.wine/drive_c/Program Files/SRIM/SR Module" /home/ubuntu/SRIM_SR_Module
+
+# Register OCX/DLL dependencies silently so build does not block on modal dialogs
+USER ubuntu
+RUN xvfb-run -a sh -lc "\
+    wineboot --update && \
+    SRIMDIR='C:\\Program Files\\SRIM' && \
+    wine regsvr32 /s \"\${SRIMDIR}\\MSVBVM50.DLL\" && \
+    wine regsvr32 /s \"\${SRIMDIR}\\COMDLG32.OCX\" && \
+    wine regsvr32 /s \"\${SRIMDIR}\\msflxgrd.ocx\" && \
+    wine regsvr32 /s \"\${SRIMDIR}\\RICHTX32.OCX\" && \
+    wine regsvr32 /s \"\${SRIMDIR}\\TABCTL32.OCX\" && \
+    wine regsvr32 /s \"\${SRIMDIR}\\comctl32.ocx\" && \
+    wineserver -k && \
+    rm -rf /home/ubuntu/.cache/wine"
+
+# COPY small config files and scripts last
+USER root
+COPY container_helpers/srim-run-srmodule container_helpers/srim-run-trim /usr/local/bin/
+RUN chmod 0755 /usr/local/bin/srim-run-srmodule /usr/local/bin/srim-run-trim
+
+# Fix ownership (Wine prefix + venv + home)
+RUN chown -R ubuntu:ubuntu /home/ubuntu
+USER ubuntu
+
+WORKDIR /home/ubuntu/workdir
+
+# podman build -t srim -f Containerfile .
+#
+#  WITH X-INTERFACE
+# podman run -it --rm  -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:ro   --userns=keep-id   srim
+#

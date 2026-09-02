@@ -1,0 +1,99 @@
+FROM docker.io/library/ubuntu:24.04
+
+LABEL maintainer="FISPACT Container"
+LABEL description="FISPACT for h1,h2,n"
+
+# BUILD WITH :
+# podman build -t fispact -f Containerfile .
+#
+#
+
+RUN id ubuntu || useradd -m -s /bin/bash ubuntu
+
+COPY FispactII/EAF2007data/  /opt/FispactII/EAF2007data/
+COPY FispactII/EAF2010data/  /opt/FispactII/EAF2010data/
+COPY FispactII/fispact       /opt/FispactII/fispact
+COPY FispactII/fispact.py    /opt/FispactII/fispact.py
+
+COPY FispactII/opt_files_proton   /opt/FispactII/
+COPY FispactII/opt_files_deuteron /opt/FispactII/
+COPY FispactII/opt_files_neutron  /opt/FispactII/
+COPY FispactII/inventory.i    /opt/FispactII/
+COPY FispactII/convert.i      /opt/FispactII/
+COPY FispactII/collapse.i     /opt/FispactII/
+COPY FispactII/condense.i     /opt/FispactII/
+
+
+#
+#  now the image has 1.19 GB
+#   the files need to be linked to   `files`
+#   and `spectra` file is needed
+#   and `inventory.i` is needed
+
+
+#
+# After BIG LIBS are copied, I fo things that are changing
+#
+
+RUN apt-get update && apt-get install -y curl ca-certificates nano && \
+    curl -sL https://releases.astral.sh/github/uv/releases/download/0.11.16/uv-x86_64-unknown-linux-gnu.tar.gz | \
+    tar xz -C /usr/local/bin --strip-components=1 uv-x86_64-unknown-linux-gnu/uv uv-x86_64-unknown-linux-gnu/uvx && \
+    rm -rf /var/lib/apt/lists/*
+
+
+#
+#  I will create .venv  in bash
+#
+
+USER ubuntu
+WORKDIR /home/ubuntu
+RUN uv venv /home/ubuntu/.venv && \
+    uv pip install --python /home/ubuntu/.venv/bin/python click pypact matplotlib
+RUN echo 'source /home/ubuntu/.venv/bin/activate' >> /home/ubuntu/.bashrc
+RUN echo 'alias fispact="python /opt/FispactII/fispact.py"' >> /home/ubuntu/.bashrc
+
+
+# #  PROTONS FOR THE EXAMPLE
+# RUN ln -s /opt/FispactII/opt_files_proton /home/ubuntu/files
+# COPY FispactII/ai/spectra    /home/ubuntu/
+# COPY FispactII/ai/inventory.i    /home/ubuntu/
+# COPY FispactII/ai/convert.i    /home/ubuntu/
+# COPY FispactII/ai/collapse.i    /home/ubuntu/
+# COPY FispactII/ai/condense.i    /home/ubuntu/
+# COPY FispactII/ai/opt_files_proton   /home/ubuntu/files_proton
+# COPY FispactII/ai/opt_files_deuteron /home/ubuntu/files_deuteron
+# COPY FispactII/ai/opt_files_neutron  /home/ubuntu/files_neutron
+
+USER root
+RUN chown -R ubuntu:ubuntu /home/ubuntu
+USER ubuntu
+
+ENTRYPOINT ["uv", "run", "/opt/FispactII/fispact.py"]
+
+# For building the container ###############
+#
+#   podman build  -t fispact -f Containerfile .
+#
+# For an interactive shell instead: ##############################
+#
+# podman run -it -v $(pwd):/home/ubuntu/workdir -w /home/ubuntu/workdir  --userns=keep-id --entrypoint bash fispact
+#
+#### add privileges
+#
+# --userns=keep-id
+#
+# podman run -v $(pwd):/home/ubuntu/workdir -w /home/ubuntu/workdir --userns=keep-id fispact
+#
+#  IT ONLY NEEDS inventory.i with "<<FORCE ENERGY 20.5>>" in it  #### TRICK #####
+#
+# TO SAVE : podman save -o ../fispact_podman.tar localhost/fispact:latest
+#
+# ====================== NEW DEVELOPMENT PIPELINE ==========================
+#   ----- have the fispact.py code at the current folder ------ and run it ----
+#
+# podman run -it -v $(pwd):/home/ubuntu/workdir -w /home/ubuntu/workdir   --userns=keep-id  --entrypoint bash   fispact -lc "uv run ./fispact.py"
+#
+#
+#
+#
+#
