@@ -7,7 +7,7 @@ set -e
 
 # Get current timestamp
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-ARCHIVE_NAME="actar_source_${TIMESTAMP}.tar.gz"
+ARCHIVE_NAME="podman_actar_source_${TIMESTAMP}.tar.gz"
 
 # Record current git commit
 if command -v git &> /dev/null && [ -d .git ]; then

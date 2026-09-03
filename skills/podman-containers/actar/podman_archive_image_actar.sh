@@ -7,14 +7,14 @@ set -e
 
 # Get current timestamp
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-ARCHIVE_NAME="actar_image_${TIMESTAMP}.tar"
+ARCHIVE_NAME="podman_actar_image_${TIMESTAMP}.tar"
 
 # Image name
 IMAGE_NAME="actar"
 
 # Check if image exists
-if ! podman images | grep -q "^localhost/$IMAGE_NAME\s"; then
-    echo "Error: Image '$IMAGE_NAME' not found. Please build it first with ./podman_build.sh"
+if ! podman image exists "$IMAGE_NAME"; then
+    echo "Error: Image '$IMAGE_NAME' not found. Please build it first with ./podman_build_actar.sh"
     exit 1
 fi
 
