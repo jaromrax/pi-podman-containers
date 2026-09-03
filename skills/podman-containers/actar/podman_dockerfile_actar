@@ -1,0 +1,82 @@
+# Use official Ubuntu 22.04.5 LTS image
+FROM ubuntu:22.04
+
+# Set non-interactive mode for automated package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Update system and install essential tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    sudo \
+    wget \
+    tar \
+    binutils \
+    cmake \
+    dpkg-dev \
+    g++ \
+    gcc \
+    libssl-dev \
+    git \
+    libx11-dev \
+    libxext-dev \
+    libxft-dev \
+    libxpm-dev \
+    python3 \
+    libtbb-dev \
+    libgif-dev \
+    fd-find \
+    nano \
+    silversearcher-ag \
+    tzdata \
+    libtinyxml-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && dpkg-reconfigure -f noninteractive tzdata
+
+# Create the standard ubuntu user (following podman-containers skill rules)
+RUN useradd -m -s /bin/bash ubuntu
+
+# Grant ubuntu user passwordless sudo rights
+RUN echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Setup ROOT installation as root (so we can place files in /home/ubuntu/root)
+WORKDIR /home/ubuntu
+
+# Switch to ubuntu user for remaining operations
+USER ubuntu
+
+# Setup ROOT directory
+RUN mkdir /home/ubuntu/root
+ADD  root_v6.30.04.Linux-ubuntu22.04-x86_64-gcc11.4.tar.gz  /home/ubuntu/
+RUN cd /home/ubuntu/root && du -hs .
+
+# Automatically source ROOT environment on login
+RUN echo "source /home/ubuntu/root/bin/thisroot.sh" >> /home/ubuntu/.bashrc \
+    && echo "export ROOTSYS=$HOME/root" >> /home/ubuntu/.bashrc \
+    && echo "export PYTHONPATH=$HOME/root/lib" >> /home/ubuntu/.bashrc \
+    && echo "export PATH=$ROOTSYS/bin:~/bin:~/.local/bin:$PATH" >> /home/ubuntu/.bashrc \
+    && echo "" >> /home/ubuntu/.bashrc
+
+# Verify ROOT installation directly in the build output
+RUN bash -c "/home/ubuntu/root/bin/root --version"
+
+# Set working directory and create ACTAR structure
+WORKDIR /home/ubuntu
+RUN mkdir -p /home/ubuntu/ACTAR/analysis_code
+
+# Extract local tar.gz archive directly into /home/ubuntu/ACTAR/analysis_code/
+ADD full_actar_folder_structure.tar.gz /home/ubuntu/ACTAR/analysis_code/
+
+# Create target directory for remote compilation
+RUN mkdir -p /home/ubuntu/ACTAR/analysis_code/root_remote
+
+RUN echo "=======================" && cd ACTAR && du -hs * && echo "======================="
+
+# Compile ACTAR analysis code
+RUN cd /home/ubuntu/ACTAR/analysis_code/ && bash -c "source /home/ubuntu/root/bin/thisroot.sh && ./compile_all_so"
+
+WORKDIR /home/ubuntu/ACTAR/analysis_code/root
+
+# Set default command
+CMD ["/bin/bash"]

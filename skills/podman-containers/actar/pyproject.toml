@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "actar-podman-ui"
+version = "0.1.0"
+description = "Interactive Podman UI for ACTAR"
+requires-python = ">=3.10"
+dependencies = [
+  "textual>=0.50",
+  "rich>=13",
+]
+
+[project.scripts]
+podman-ui-actar = "podman_ui_actar:main"
+
+[tool.setuptools]
+py-modules = ["podman_ui_actar"]
