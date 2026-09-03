@@ -1,0 +1,13 @@
+(undo-tree-save-format-version . 1)
+"c2fafa4b340397d403a466e73673c5a95e60244d"
+[nil nil nil nil (27289 12511 393534 533000) 0 nil]
+([nil nil ((1197 . 1198) (t 27288 12136 225561 935000)) nil (27289 12511 393533 794000) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1207 . 1208) (nil fontified nil 1198 . 1208) (1198 . 1208)) nil (27289 12511 393533 276000) 0 nil])
+([nil nil ((#("_" 0 1 (font-lock-multiline t face (markdown-pre-face markdown-code-face) markdown-gfm-code (1107 1269) fontified t)) . 1197) (undo-tree-id2 . -1)) nil (27289 12511 393532 668000) 0 nil])
+([nil nil ((1236 . 1237)) nil (27289 12511 393531 853000) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1246 . 1247) (nil fontified nil 1237 . 1247) (1237 . 1247)) nil (27289 12511 393531 372000) 0 nil])
+([nil nil ((#("_" 0 1 (font-lock-multiline t face (markdown-pre-face markdown-code-face) markdown-gfm-code (1107 1279) fontified t)) . 1237) (undo-tree-id1 . -1)) nil (27289 12511 393530 921000) 0 nil])
+([nil nil ((1274 . 1275)) nil (27289 12511 393529 679000) 0 nil])
+([nil nil ((nil rear-nonsticky nil 1284 . 1285) (nil fontified nil 1275 . 1285) (1275 . 1285)) nil (27289 12511 393529 63000) 0 nil])
+([nil current ((#("_" 0 1 (font-lock-multiline t face (markdown-pre-face markdown-code-face) markdown-gfm-code (1107 1289) fontified t)) . 1275) (undo-tree-id0 . -1)) nil (27289 12511 393526 541000) 0 nil])
+nil

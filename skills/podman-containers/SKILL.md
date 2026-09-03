@@ -29,9 +29,9 @@ Each project folder contains only its Podman integration files:
 <project>/
 ├── podman_readme_<project>.md
 ├── podman_dockerfile_<project>
-├── podman_build.sh
-├── podman_archive_source.sh
-└── podman_archive_image.sh
+├── podman_build_<project>.sh
+├── podman_archive_source_<project>.sh
+└── podman_archive_image_<project>.sh
 ```
 
 The real application repository is not stored in this skill repository. The
@@ -60,12 +60,13 @@ Current project folders:
 
 ## Commands
 
-From a project folder, the standard commands are:
+From a project folder, the standard commands are (replace `<project>` with
+that folder's project name):
 
 ```bash
-./podman_build.sh
-./podman_archive_source.sh
-./podman_archive_image.sh
+./podman_build_<project>.sh
+./podman_archive_source_<project>.sh
+./podman_archive_image_<project>.sh
 ```
 
 The archive scripts use `%Y%m%d_%H%M%S` timestamps. They archive outside the

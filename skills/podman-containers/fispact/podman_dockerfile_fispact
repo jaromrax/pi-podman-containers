@@ -86,7 +86,7 @@ ENTRYPOINT ["uv", "run", "/opt/FispactII/fispact.py"]
 #
 #  IT ONLY NEEDS inventory.i with "<<FORCE ENERGY 20.5>>" in it  #### TRICK #####
 #
-# TO SAVE : podman save -o ../fispact_podman.tar localhost/fispact:latest
+# TO SAVE : podman save -o ../podman_fispact_image.tar localhost/fispact:latest
 #
 # ====================== NEW DEVELOPMENT PIPELINE ==========================
 #   ----- have the fispact.py code at the current folder ------ and run it ----

@@ -1,0 +1,120 @@
+{
+  "packages": [
+    {
+      "source": "git:github.com/jaromrax/pi-pass-secrets",
+      "autoload": false,
+      "extensions": [
+        "-index.ts"
+      ]
+    },
+    {
+      "source": "git:github.com/jaromrax/pi-podman-containers",
+      "autoload": false,
+      "skills": [
+        "-skills/podman-containers/SKILL.md"
+      ]
+    },
+    {
+      "source": "npm:@hk_net/pi-thinking-command",
+      "autoload": false,
+      "extensions": [
+        "-thinking-shortcut.ts"
+      ]
+    },
+    {
+      "source": "npm:@hypabolic/crossbar",
+      "autoload": false,
+      "extensions": [
+        "-src/index.ts"
+      ]
+    },
+    {
+      "source": "npm:@juicesharp/rpiv-advisor",
+      "autoload": false,
+      "extensions": [
+        "-index.ts"
+      ]
+    },
+    {
+      "source": "npm:@tintinweb/pi-subagents",
+      "autoload": false,
+      "extensions": [
+        "-src/index.ts"
+      ]
+    },
+    {
+      "source": "npm:context-mode",
+      "autoload": false,
+      "extensions": [
+        "-build/adapters/pi/extension.js"
+      ],
+      "skills": [
+        "-skills/context-mode/SKILL.md",
+        "-skills/ctx-doctor/SKILL.md",
+        "-skills/ctx-index/SKILL.md",
+        "-skills/ctx-insight/SKILL.md",
+        "-skills/ctx-purge/SKILL.md",
+        "-skills/ctx-search/SKILL.md",
+        "-skills/ctx-stats/SKILL.md",
+        "-skills/ctx-upgrade/SKILL.md"
+      ]
+    },
+    {
+      "source": "npm:pi-ask-user",
+      "autoload": false,
+      "extensions": [
+        "+index.ts"
+      ],
+      "skills": [
+        "+skills/ask-user/SKILL.md"
+      ]
+    },
+    {
+      "source": "npm:pi-codex-goal",
+      "autoload": false,
+      "extensions": [
+        "-src/index.ts"
+      ],
+      "prompts": [
+        "-prompts/create-goal.md"
+      ]
+    },
+    {
+      "source": "npm:pi-intercom",
+      "autoload": false,
+      "extensions": [
+        "-index.ts"
+      ],
+      "skills": [
+        "-skills/pi-intercom/SKILL.md"
+      ]
+    },
+    {
+      "source": "npm:pi-mcp-adapter",
+      "autoload": false,
+      "extensions": [
+        "-index.ts"
+      ],
+      "skills": [
+        "-skills/mcp-scripting/SKILL.md"
+      ]
+    },
+    {
+      "source": "npm:trelly",
+      "autoload": false,
+      "skills": [
+        "-skills/README.md",
+        "-skills/trelly/SKILL.md",
+        "-skills/trelly-card-display.md",
+        "-skills/trelly-mcp/SKILL.md"
+      ]
+    },
+    {
+      "source": "https://github.com/jaromrax/pi-memory",
+      "autoload": false,
+      "extensions": [
+        "-index.ts"
+      ]
+    }
+  ]
+}

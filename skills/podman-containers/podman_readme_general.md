@@ -9,10 +9,8 @@ projects coexist in this repository:
 - `podman_archive_source_<project>.sh`
 - `podman_archive_image_<project>.sh`
 
-In a standalone project directory these may be named `podman_build.sh`,
-`podman_archive_source.sh`, and `podman_archive_image.sh`; the canonical
-README names remain `podman_readme_<project>.md` and
-`podman_readme_general.md`.
+All project integration files use the project name in the filename; replace
+`<project>` below with the actual project name.
 
 ## Build
 
@@ -31,10 +29,13 @@ A source archive preserves the Dockerfile, source, lockfiles, scripts,
 configuration, and project documentation needed to reproduce a build. Each
 project's source-archive script contains its own exclude list directly, so the
 three scripts are self-contained and there are no separate `.excludes` files.
-Archive names use the local timestamp format:
+Archive names use the project-prefixed format and local timestamp:
 
 ```text
-%Y%m%d_%H%M%S
+podman_<project>_source_<timestamp>.tgz
+podman_<project>_image_<timestamp>.tar
+
+# timestamp: %Y%m%d_%H%M%S
 ```
 
 ## Image archive

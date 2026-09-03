@@ -3,7 +3,7 @@ set -euo pipefail
 PROJECT="omnivoice"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STAMP="$(date +%Y%m%d_%H%M%S)"
-DEST="${1:-$ROOT/../${PROJECT}_source_${STAMP}.tgz}"
+DEST="${1:-$ROOT/../podman_${PROJECT}_source_${STAMP}.tgz}"
 tar \
     --exclude='./.git' \
     --exclude='./.venv' \

@@ -2,8 +2,8 @@
 
 > Common rules: [`podman_readme_general.md`](../podman_readme_general.md)
 >
-> Project scripts: `podman_build.sh`, `podman_archive_source.sh`,
-> `podman_archive_image.sh`
+> Project scripts: `podman_build_srim.sh`, `podman_archive_source_srim.sh`,
+> `podman_archive_image_srim.sh`
 
 > **TODO(Podman):** Review and complete the source-archive exclusion list;
 > SRIM's generated and machine-local files have not yet been fully identified.
@@ -22,9 +22,9 @@ This file is the repeatable reference for rebuilding the SRIM Podman image and u
 Build and archive the image from the project root:
 
 ```bash
-./podman_build.sh
-./podman_archive_source.sh
-./podman_archive_image.sh
+./podman_build_srim.sh
+./podman_archive_source_srim.sh
+./podman_archive_image_srim.sh
 ```
 
 ## Basic Run
@@ -243,9 +243,9 @@ Rebuild the image after changes to:
 2. Build and archive:
 
 ```bash
-./podman_build.sh
-./podman_archive_source.sh
-./podman_archive_image.sh
+./podman_build_srim.sh
+./podman_archive_source_srim.sh
+./podman_archive_image_srim.sh
 ```
 
 3. Run interactively with X11:

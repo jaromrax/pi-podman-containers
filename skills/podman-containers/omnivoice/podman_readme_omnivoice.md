@@ -2,8 +2,8 @@
 
 > Common rules: [`podman_readme_general.md`](../podman_readme_general.md)
 >
-> Project scripts: `podman_build.sh`, `podman_archive_source.sh`,
-> `podman_archive_image.sh`
+> Project scripts: `podman_build_omnivoice.sh`, `podman_archive_source_omnivoice.sh`,
+> `podman_archive_image_omnivoice.sh`
 
 This document is the repeatable reference for building and running OmniVoice in
 Podman. It combines general container-maintenance practices with an OmniVoice-
@@ -33,7 +33,7 @@ repository's Linux CUDA lockfile entries.
 From the OmniVoice project root:
 
 ```bash
-./podman_build.sh
+./podman_build_omnivoice.sh
 ```
 
 Smoke-test the image without downloading model weights:
@@ -200,7 +200,7 @@ contains OmniVoice's exclude list directly, so no separate exclude file is
 needed:
 
 ```bash
-./podman_archive_source.sh
+./podman_archive_source_omnivoice.sh
 ```
 
 It includes `podman_dockerfile_omnivoice`, the lockfile, package source, and
@@ -219,11 +219,11 @@ run the same dependencies without rebuilding from potentially changed remote
 registries:
 
 ```bash
-./podman_archive_image.sh
+./podman_archive_image_omnivoice.sh
 # Optional compression (use the timestamped file it creates):
-pixz -9 ../omnivoice_image_YYYYMMDD_HHMMSS.tar
+pixz -9 ../podman_omnivoice_image_YYYYMMDD_HHMMSS.tar
 # Restore later:
-podman load -i ../omnivoice_image_YYYYMMDD_HHMMSS.tar
+podman load -i ../podman_omnivoice_image_YYYYMMDD_HHMMSS.tar
 ```
 
 The source archive reproduces the build recipe and source; the image archive
@@ -239,7 +239,7 @@ Rebuild after changes to:
 - the `omnivoice/` source tree
 
 ```bash
-IMAGE=omnivoice:$(git rev-parse --short HEAD) ./podman_build.sh
+IMAGE=omnivoice:$(git rev-parse --short HEAD) ./podman_build_omnivoice.sh
 ```
 
 Useful image commands:
@@ -247,8 +247,8 @@ Useful image commands:
 ```bash
 podman images omnivoice
 podman inspect omnivoice
-./podman_archive_image.sh
-podman load -i ../omnivoice_image_YYYYMMDD_HHMMSS.tar
+./podman_archive_image_omnivoice.sh
+podman load -i ../podman_omnivoice_image_YYYYMMDD_HHMMSS.tar
 podman rmi omnivoice
 ```
 

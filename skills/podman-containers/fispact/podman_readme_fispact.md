@@ -2,8 +2,8 @@
 
 > Common rules: [`podman_readme_general.md`](../podman_readme_general.md)
 >
-> Project scripts: `podman_build.sh`, `podman_archive_source.sh`,
-> `podman_archive_image.sh`
+> Project scripts: `podman_build_fispact.sh`, `podman_archive_source_fispact.sh`,
+> `podman_archive_image_fispact.sh`
 
 > **TODO(Podman):** Review and complete the source-archive exclusion list;
 > FISPACT's generated and machine-local files have not yet been fully identified.
@@ -15,7 +15,7 @@
 The image is based on `docker.io/library/ubuntu:24.04` and built with:
 
 ```bash
-./podman_build.sh
+./podman_build_fispact.sh
 ```
 
 Key Dockerfile lessons:
@@ -60,19 +60,19 @@ This mounts the current directory (containing your edited `fispact.py`) and runs
 
 ```bash
 podman images fispact                    # show image size
-./podman_archive_source.sh
-./podman_archive_image.sh
-podman load -i ../fispact_image_YYYYMMDD_HHMMSS.tar  # restore an image archive
+./podman_archive_source_fispact.sh
+./podman_archive_image_fispact.sh
+podman load -i ../podman_fispact_image_YYYYMMDD_HHMMSS.tar  # restore an image archive
 podman rmi fispact                              # remove image
 ```
 
 
 ### Archiving pipeline
 
- - build the image with `./podman_build.sh`
- - archive the source with `./podman_archive_source.sh`
- - archive the image with `./podman_archive_image.sh`
- - optionally compress the image archive with `pixz -9 ../fispact_image_YYYYMMDD_HHMMSS.tar`
+ - build the image with `./podman_build_fispact.sh`
+ - archive the source with `./podman_archive_source_fispact.sh`
+ - archive the image with `./podman_archive_image_fispact.sh`
+ - optionally compress the image archive with `pixz -9 ../podman_fispact_image_YYYYMMDD_HHMMSS.tar`
 
 ---
 
