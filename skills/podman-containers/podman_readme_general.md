@@ -103,6 +103,22 @@ Use `--rm` for short-lived jobs. Use a named, long-running container only when
 the project needs a service or an exec-based development workflow. Do not use
 `--privileged`; pass only explicitly required devices, ports, and environment.
 
+### Driving the daemon from a restricted environment
+
+When the calling shell cannot run containers itself (sandboxed agent,
+remote session), point `podman --remote` at the host daemon instead of
+falling back to a broken local run:
+
+```bash
+export CONTAINER_HOST=unix:///run/user/$(id -u)/podman/podman.sock
+podman --remote run --rm --userns=keep-id \
+  -v "$PWD":/workdir -w /workdir <image> [arguments]
+```
+
+Preflight with `podman --remote info`. If it fails, fix daemon access
+(socket exposed, `podman.socket` enabled) instead of retrying local runs:
+a read-only run-root or blocked user namespaces will fail every time.
+
 ## GUI, X11, and headless display
 
 Display access is opt-in. Headless containers should not receive host display
@@ -188,6 +204,10 @@ Record, alongside the archive or in release notes:
 
 - source Git commit (`git rev-parse HEAD`);
 - image tag, image ID/digest, and base/dependency versions;
+- consider baking a `BUILD_TAG` file (build UTC timestamp + key versions)
+  so a loaded image self-reports what it contains (write it in a `RUN`
+  layer after all `COPY` layers, so layer caching refreshes it only on
+  real content changes);
 - host architecture and any required GPU/runtime assumptions;
 - the test command and result;
 - archive exclusions and any external input assets needed to rebuild.

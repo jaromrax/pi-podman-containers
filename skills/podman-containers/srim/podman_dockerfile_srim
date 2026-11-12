@@ -3,7 +3,8 @@ FROM docker.io/library/ubuntu:24.04
 LABEL maintainer="SRIM Container"
 LABEL description="SRIM - Stopping and Range of Ions in Matter"
 
-# Install system packages in a single layer with cleanup
+# SRIM runs under Wine and needs 32-bit support.
+# Keep apt update/install/cleanup in one layer.
 RUN dpkg --add-architecture i386 && \
     apt-get update && apt-get install -y --no-install-recommends \
     wine \
@@ -15,40 +16,51 @@ RUN dpkg --add-architecture i386 && \
     rsync less mc \
     && rm -rf /var/lib/apt/lists/*
 
-# Ensure ubuntu user exists (ubuntu:24.04 already has it)
+# Ubuntu 24.04 already has user ubuntu, but keep this defensive check.
 RUN id ubuntu || useradd -m -s /bin/bash ubuntu
 
-# Install uv for Python management
+# Install uv directly as standalone binaries.
 RUN curl -sL https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-gnu.tar.gz | \
-    tar xz -C /usr/local/bin --strip-components=1 uv-x86_64-unknown-linux-gnu/uv uv-x86_64-unknown-linux-gnu/uvx
+    tar xz -C /usr/local/bin --strip-components=1 \
+    uv-x86_64-unknown-linux-gnu/uv \
+    uv-x86_64-unknown-linux-gnu/uvx
 
-# Create Python venv and install packages
+# Python tools used inside the container.
+# Versions are pinned for reproducibility: the analysis report must not
+# change formatting between rebuilds. Use uv pip (a uv venv has no pip).
 USER ubuntu
-RUN uv venv /home/ubuntu/.venv && \
-    uv pip install --python /home/ubuntu/.venv/bin/python click matplotlib
+RUN uv venv --python 3.12 /home/ubuntu/.venv && \
+    uv pip install --python /home/ubuntu/.venv/bin/python \
+    "click==8.1.7" "matplotlib==3.9.2" "pandas==2.2.3"
 RUN echo 'source /home/ubuntu/.venv/bin/activate' >> /home/ubuntu/.bashrc
 
-# Initialize Wine prefix (no GUI needed)
-USER ubuntu
+# Initialize the Wine prefix in headless mode.
 RUN xvfb-run wineboot --init && \
     wineboot --update && \
     rm -rf /home/ubuntu/.cache/wine
 
-# Copy Windows dependencies to Wine system directory
-COPY --chown=ubuntu:ubuntu ./installation_files/COMDLG32.OCX ./installation_files/msflxgrd.ocx ./installation_files/MSVBVM50.DLL ./installation_files/RICHTX32.OCX ./installation_files/TABCTL32.OCX ./installation_files/comctl32.ocx \
+# Copy VB runtime / OCX dependencies into the Wine Windows tree.
+# If a COPY destination contains spaces, copy to a temp path first
+# and mv later rather than copying there directly.
+COPY --chown=ubuntu:ubuntu ./container_installation_files/COMDLG32.OCX ./container_installation_files/msflxgrd.ocx ./container_installation_files/MSVBVM50.DLL ./container_installation_files/RICHTX32.OCX ./container_installation_files/TABCTL32.OCX ./container_installation_files/comctl32.ocx \
     /home/ubuntu/.wine/drive_c/windows/
 
-# Copy pre-installed SRIM tree from installation_files
-COPY --chown=ubuntu:ubuntu ./installation_files/SRIM_COPY/ /tmp/srim_install/
+# Copy the already-unpacked SRIM tree to a temporary path first.
+COPY --chown=ubuntu:ubuntu ./container_installation_files/SRIM_COPY/ /tmp/srim_install/
 
-# Move SRIM into Program Files
+# Move SRIM into "Program Files" and create convenience symlinks.
 USER root
 RUN mv /tmp/srim_install "/home/ubuntu/.wine/drive_c/Program Files/SRIM" && \
     chown -R ubuntu:ubuntu "/home/ubuntu/.wine/drive_c/Program Files/SRIM" && \
     ln -s "/home/ubuntu/.wine/drive_c/Program Files/SRIM" /home/ubuntu/SRIM && \
     ln -s "/home/ubuntu/.wine/drive_c/Program Files/SRIM/SR Module" /home/ubuntu/SRIM_SR_Module
 
-# Register OCX/DLL dependencies silently so build does not block on modal dialogs
+# Register the legacy controls silently.
+# The /s is critical: without it Wine may open a blocking modal dialog
+# that hangs the build. If registration still fails, suspect an invalid
+# self-registration target (e.g. MSVBVM50.DLL is not a well-behaved
+# regsvr32 target) before suspecting X11. Prefer xvfb-run -a over
+# manually backgrounding Xvfb.
 USER ubuntu
 RUN xvfb-run -a sh -lc "\
     wineboot --update && \
@@ -62,19 +74,30 @@ RUN xvfb-run -a sh -lc "\
     wineserver -k && \
     rm -rf /home/ubuntu/.cache/wine"
 
-# COPY small config files and scripts last
+# Copy helper scripts late so helper-only edits do not invalidate early layers.
 USER root
-COPY container_helpers/srim-run-srmodule container_helpers/srim-run-trim /usr/local/bin/
-RUN chmod 0755 /usr/local/bin/srim-run-srmodule /usr/local/bin/srim-run-trim
+COPY container_helpers/srim-run-srmodule container_helpers/srim-run-trim container_helpers/srim-make-inputs container_helpers/srim-analyze /usr/local/bin/
+RUN chmod 0755 /usr/local/bin/srim-run-srmodule /usr/local/bin/srim-run-trim /usr/local/bin/srim-make-inputs /usr/local/bin/srim-analyze
+COPY --chown=ubuntu:ubuntu container_input_creation/ /opt/srim-tools/input_creation/
+COPY --chown=ubuntu:ubuntu container_output_analysis/ /opt/srim-tools/output_analysis/
+COPY --chown=ubuntu:ubuntu srim_trim srim_sr /opt/srim-tools/host/
+COPY --chown=ubuntu:ubuntu INSTRUCTIONS.md /opt/srim-tools/INSTRUCTIONS.md
+# Self-hosting sources: rebuild the image from scratch on any machine
+# from these alone (plus network). Keep each dir as a named subdir.
+COPY --chown=ubuntu:ubuntu Containerfile .dockerignore INSTRUCTIONS.md srim_trim srim_sr /opt/srim-tools/host/building_container_sources/
+COPY --chown=ubuntu:ubuntu container_helpers/ /opt/srim-tools/host/building_container_sources/container_helpers/
+COPY --chown=ubuntu:ubuntu container_input_creation/ /opt/srim-tools/host/building_container_sources/container_input_creation/
+COPY --chown=ubuntu:ubuntu container_installation_files/ /opt/srim-tools/host/building_container_sources/container_installation_files/
+COPY --chown=ubuntu:ubuntu container_output_analysis/ /opt/srim-tools/host/building_container_sources/container_output_analysis/
+# Build tag: this layer reruns whenever any layer above changes, so the
+# timestamp marks the last content change of the image.
+RUN date -u +"%Y%m%d_%H%M%S UTC" > /opt/srim-tools/BUILD_TAG.txt && \
+    /home/ubuntu/.venv/bin/python -V 2>&1 >> /opt/srim-tools/BUILD_TAG.txt && \
+    echo "base: docker.io/library/ubuntu:24.04" >> /opt/srim-tools/BUILD_TAG.txt && \
+    chmod 644 /opt/srim-tools/BUILD_TAG.txt
 
-# Fix ownership (Wine prefix + venv + home)
+# Final ownership fix for Wine prefix, venv, and home.
 RUN chown -R ubuntu:ubuntu /home/ubuntu
 USER ubuntu
 
 WORKDIR /home/ubuntu/workdir
-
-# podman build -t srim -f Containerfile .
-#
-#  WITH X-INTERFACE
-# podman run -it --rm  -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:ro   --userns=keep-id   srim
-#

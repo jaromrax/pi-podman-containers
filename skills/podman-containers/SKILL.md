@@ -13,7 +13,7 @@ rules and the Podman files that document or package each supported project.
 ## Required reading order
 
 1. Read [`podman_readme_general.md`](podman_readme_general.md).
-2. Identify the target project example folder under `examples/`.
+2. Identify the target project folder in this directory.
 3. Read that folder's `podman_readme_<project>.md`.
 4. Inspect the project's `podman_dockerfile_<project>` and scripts before
    changing or running them.

@@ -4,9 +4,9 @@
 >
 > Project scripts: `podman_build_srim.sh`, `podman_archive_source_srim.sh`,
 > `podman_archive_image_srim.sh`
-
-> **TODO(Podman):** Review and complete the source-archive exclusion list;
-> SRIM's generated and machine-local files have not yet been fully identified.
+>
+> Canonical Dockerfile: [`podman_dockerfile_srim`](podman_dockerfile_srim)
+> (annotated; this readme does not duplicate it)
 
 This file is the repeatable reference for rebuilding the SRIM Podman image and understanding why the image is assembled this way.
 
@@ -14,8 +14,10 @@ This file is the repeatable reference for rebuilding the SRIM Podman image and u
 
 - provide a stable Ubuntu + Wine + SRIM image
 - keep SRIM installed inside the Wine prefix
-- expose helper commands for backend execution
+- expose helper commands for input generation, backend execution, and analysis
 - keep host-mounted outputs writable by the host user
+- pin the Python toolchain so reports are reproducible across rebuilds
+- carry the image's own build sources, so it rebuilds from scratch anywhere
 
 ## Image Build
 
@@ -51,6 +53,17 @@ Inside the image:
   - `/home/ubuntu/SRIM`
 - SR Module convenience symlink:
   - `/home/ubuntu/SRIM_SR_Module`
+- input generation + analysis tools:
+  - `/opt/srim-tools/input_creation/` (TRIM.IN / SR.IN generator)
+  - `/opt/srim-tools/output_analysis/` (TRIM output parsers + report)
+- reference host runners (run on the host, not in the container):
+  - `/opt/srim-tools/host/srim_trim`, `/opt/srim-tools/host/srim_sr`
+- container operating manual:
+  - `/opt/srim-tools/INSTRUCTIONS.md`
+- full build sources for rebuilding from scratch:
+  - `/opt/srim-tools/host/building_container_sources/`
+- build tag (UTC timestamp of last content change + python + base):
+  - `/opt/srim-tools/BUILD_TAG.txt`
 - mounted host workdir:
   - `/home/ubuntu/workdir`
 
@@ -58,15 +71,24 @@ Inside the image:
 
 Installed in `/usr/local/bin/` during image build:
 
-- `srim-run-srmodule`
-- `srim-run-trim`
+- `srim-make-inputs` — generate `TRIM.IN` + `TRIMAUTO` + `SR[_i].IN`
+- `srim-run-srmodule` — batch stopping-power run, copy output back
+- `srim-run-trim` — batch TRIM run, copy enabled outputs back
+- `srim-analyze` — print the TRIM summary table (`--save` writes it)
 
 Important:
 
 - these helpers are baked into the image
-- if `container_helpers/srim-run-srmodule` or `container_helpers/srim-run-trim` changes, rebuild the image before testing
+- if `container_helpers/*`, `container_input_creation/*`, or
+  `container_output_analysis/*` changes, rebuild the image before testing
 
 ## Helper Behavior
+
+### `srim-make-inputs`
+
+Same flags as the legacy generator (`-i/-m/-t/-e/-a/-n/--dens/--pressure/
+--kelvin/--rand/--outdir/--force-clean`). Writes CRLF files into the job
+dir. No X11 needed (pure python).
 
 ### `srim-run-srmodule`
 
@@ -101,118 +123,67 @@ Behavior:
 - refuses overwrite by default
 - requires `--force-clean` to replace existing host-side result files
 
-Important current rule:
+Current fixed Diskfiles (set by the generator, not user options):
 
-- for the present workflow, `Transmit` in the `Diskfiles` line should remain `1`
+```text
+1 0 1 0 0 0   (Ranges + Transmit only)
+```
+
+so a TRIM job produces `RANGE_3D.txt`, `TRANSMIT.txt`, `TRIMOUT.txt`
+(plus `BACKSCAT.txt`/`SPUTTER.txt` only if enabled, always empty here).
+
+### `srim-analyze`
+
+Prints the summary table for a job dir (event counts, mean/median/sigma
+for energy and depth, means for lateral Y/Z, theta mean/sigma/max in
+degrees, radial sigma/max, emittance in pi·mm·mrad, header/TRIMOUT
+checks). `--save output_table.txt` writes the table into the job dir.
 
 ## Why The Build Is Structured This Way
 
 - Ubuntu 24.04 already ships a usable `ubuntu` user
 - `wine32:i386` is needed because SRIM is an old Windows application
-- `xvfb-run` is used both for Wine prefix initialization and for silent registration in build steps
-- `uv` is installed directly to `/usr/local/bin` so Python tooling inside the image is simple and reproducible
-- the unpacked SRIM tree is copied from `installation_files/SRIM_COPY/` instead of using an interactive installer at build time
+- `xvfb-run -a` is used for Wine prefix init, silent OCX registration,
+  and headless TRIM runs (auto-picks a free virtual display)
+- `uv` is installed directly to `/usr/local/bin` so Python tooling
+  inside the image is simple; `uv venv --python 3.12` plus
+  `uv pip install --python ... "pkg==x.y.z"` pins the toolchain
+  (a `uv` venv has no `pip`; `uv tool install` is for CLIs, not libs)
+- the unpacked SRIM tree is copied from
+  `container_installation_files/SRIM_COPY/` instead of using an
+  interactive installer at build time
+- `uv pip install` lines pin exact versions (`click`, `matplotlib`,
+  `pandas`) so analysis output cannot shift between rebuilds
+- `BUILD_TAG.txt` is written by a `RUN date` layer placed after all
+  `COPY` layers: layer caching then gives it exact semantics — the
+  timestamp only refreshes when image content actually changed
+- input/analysis sources are baked under `/opt/srim-tools/` and the
+  build sources under `/opt/srim-tools/host/building_container_sources/`,
+  so the image carries everything needed to reproduce or rebuild it
+- `.dockerignore` excludes run dirs, caches, and tooling state to keep
+  the build context small (timestamped job dirs accumulate fast)
 
-## Enhanced `podman_dockerfile_srim`
+## Wine Registration Gotcha
 
-Below is the current `podman_dockerfile_srim`, rewritten with explicit comments for maintenance reference.
-
-```dockerfile
-FROM docker.io/library/ubuntu:24.04
-
-LABEL maintainer="SRIM Container"
-LABEL description="SRIM - Stopping and Range of Ions in Matter"
-
-# SRIM runs under Wine and needs 32-bit support.
-# Keep apt update/install/cleanup in one layer.
-RUN dpkg --add-architecture i386 && \
-    apt-get update && apt-get install -y --no-install-recommends \
-    wine \
-    wine32:i386 \
-    xvfb \
-    ca-certificates \
-    curl \
-    nano \
-    rsync less mc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Ubuntu 24.04 already has user ubuntu, but keep this defensive check.
-RUN id ubuntu || useradd -m -s /bin/bash ubuntu
-
-# Install uv directly as standalone binaries.
-RUN curl -sL https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-gnu.tar.gz | \
-    tar xz -C /usr/local/bin --strip-components=1 \
-    uv-x86_64-unknown-linux-gnu/uv \
-    uv-x86_64-unknown-linux-gnu/uvx
-
-# Python tools used inside the container.
-# click is needed for CLI work; matplotlib is already in use in the repo.
-USER ubuntu
-RUN uv venv /home/ubuntu/.venv && \
-    uv pip install --python /home/ubuntu/.venv/bin/python click matplotlib
-RUN echo 'source /home/ubuntu/.venv/bin/activate' >> /home/ubuntu/.bashrc
-
-# Initialize the Wine prefix in headless mode.
-RUN xvfb-run wineboot --init && \
-    wineboot --update && \
-    rm -rf /home/ubuntu/.cache/wine
-
-# Copy VB runtime / OCX dependencies into the Wine Windows tree.
-COPY --chown=ubuntu:ubuntu \
-    ./installation_files/COMDLG32.OCX \
-    ./installation_files/msflxgrd.ocx \
-    ./installation_files/MSVBVM50.DLL \
-    ./installation_files/RICHTX32.OCX \
-    ./installation_files/TABCTL32.OCX \
-    ./installation_files/comctl32.ocx \
-    /home/ubuntu/.wine/drive_c/windows/
-
-# Copy the already-unpacked SRIM tree to a temporary path first.
-COPY --chown=ubuntu:ubuntu ./installation_files/SRIM_COPY/ /tmp/srim_install/
-
-# Move SRIM into "Program Files" and create convenience symlinks.
-USER root
-RUN mv /tmp/srim_install "/home/ubuntu/.wine/drive_c/Program Files/SRIM" && \
-    chown -R ubuntu:ubuntu "/home/ubuntu/.wine/drive_c/Program Files/SRIM" && \
-    ln -s "/home/ubuntu/.wine/drive_c/Program Files/SRIM" /home/ubuntu/SRIM && \
-    ln -s "/home/ubuntu/.wine/drive_c/Program Files/SRIM/SR Module" /home/ubuntu/SRIM_SR_Module
-
-# Register the legacy controls silently.
-# The /s is critical: without it Wine may open a blocking modal dialog.
-USER ubuntu
-RUN xvfb-run -a sh -lc "\
-    wineboot --update && \
-    SRIMDIR='C:\\Program Files\\SRIM' && \
-    wine regsvr32 /s \"\${SRIMDIR}\\MSVBVM50.DLL\" && \
-    wine regsvr32 /s \"\${SRIMDIR}\\COMDLG32.OCX\" && \
-    wine regsvr32 /s \"\${SRIMDIR}\\msflxgrd.ocx\" && \
-    wine regsvr32 /s \"\${SRIMDIR}\\RICHTX32.OCX\" && \
-    wine regsvr32 /s \"\${SRIMDIR}\\TABCTL32.OCX\" && \
-    wine regsvr32 /s \"\${SRIMDIR}\\comctl32.ocx\" && \
-    wineserver -k && \
-    rm -rf /home/ubuntu/.cache/wine"
-
-# Copy helper scripts late so helper-only edits do not invalidate early layers.
-USER root
-COPY container_helpers/srim-run-srmodule container_helpers/srim-run-trim /usr/local/bin/
-RUN chmod 0755 /usr/local/bin/srim-run-srmodule /usr/local/bin/srim-run-trim
-
-# Final ownership fix for Wine prefix, venv, and home.
-RUN chown -R ubuntu:ubuntu /home/ubuntu
-USER ubuntu
-
-WORKDIR /home/ubuntu/workdir
-```
+`wine regsvr32` must run with `/s`: without it Wine may open a blocking
+modal dialog that hangs `podman build` while logs look merely noisy.
+If silent registration still fails, suspect an invalid self-registration
+target before suspecting X11 — e.g. `MSVBVM50.DLL` does not behave like
+a normal regsvr32 target. Prefer `xvfb-run -a` over manually
+backgrounding Xvfb.
 
 ## GOOD HABITS
 
 - keep large, rarely changing `COPY` layers early
-- keep helper scripts and fast-changing code late
-- rebuild the image whenever helper scripts change
+- keep helper scripts, tools, and docs late
+- rebuild the image whenever helpers, tools, or install assets change
 - use `--userns=keep-id` when mounting host directories
 - use `xvfb-run -a` for non-interactive Wine build steps
 - use silent `wine regsvr32 /s ...`
-- use `uv pip install --python ...` inside the image rather than assuming `pip`
+- use `uv pip install --python ... "pkg==version"` inside the image
+  rather than assuming `pip`; pin versions that affect output
+- record the content age of the image in a baked `BUILD_TAG` file
+- ship the image's own build sources + operating manual inside the image
 - preserve host files by parsing mounted inputs read-only when possible
 - log backend steps to host-visible log files
 
@@ -220,10 +191,11 @@ WORKDIR /home/ubuntu/workdir
 
 - do not run `wine regsvr32` without `/s`
 - do not assume every TRIM output file will exist; follow the `Diskfiles` switches in `TRIM.IN`
-- do not forget that helper scripts are copied into the image; editing them alone does not update the running container
+- do not forget that helpers and tools are copied into the image; editing them alone does not update the running container
 - do not write to mounted volumes without `--userns=keep-id`
 - do not assume `pip` exists inside a `uv venv`
 - do not use `uv tool install` for libraries such as `click`
+- do not use floating Python dependencies when the output must be reproducible
 - do not copy directly into a destination with spaces when a temp copy + `mv` is simpler
 - do not treat Wine/X11 noise as the first explanation for a blocked build when a hidden modal dialog is more likely
 
@@ -231,15 +203,29 @@ WORKDIR /home/ubuntu/workdir
 
 Rebuild the image after changes to:
 
-- `podman_dockerfile_srim`
+- `podman_dockerfile_srim` (i.e. the repo `Containerfile`)
 - `container_helpers/srim-run-srmodule`
 - `container_helpers/srim-run-trim`
-- `installation_files/*`
-- `installation_files/SRIM_COPY/*`
+- `container_helpers/srim-make-inputs`
+- `container_helpers/srim-analyze`
+- `container_input_creation/*`
+- `container_output_analysis/*`
+- `container_installation_files/*`
+- `container_installation_files/SRIM_COPY/*`
+- `srim_trim`, `srim_sr`, `INSTRUCTIONS.md` (baked as reference copies)
+
+## Source Exclusions (archive + build context)
+
+Known SRIM run/checkout files that must never be archived or sent as build
+context: timestamped job dirs (`2026*/`), `.srim_runs/`, old test runs,
+`tmp/`, `__pycache__/` (nested too — use `**/`), `.pi/`, `.agents/`,
+`.codex/`, `.git/`, `*.log`, `*.~undo-tree~`. (Resolves the old TODO:
+this list was identified from the live repo.)
 
 ## Minimal Repeat Procedure
 
-1. Ensure `installation_files/` contains the required OCX/DLL files and `SRIM_COPY/`.
+1. Ensure `container_installation_files/` contains the required OCX/DLL
+   files and `SRIM_COPY/`.
 2. Build and archive:
 
 ```bash
@@ -260,4 +246,5 @@ podman run -it --rm \
     srim
 ```
 
-4. For backend checks, run the helpers against mounted test directories.
+4. For backend checks, run the helpers against mounted test directories;
+   verify `BUILD_TAG.txt` after rebuilds.
